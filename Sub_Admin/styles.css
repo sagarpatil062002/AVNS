@@ -1,0 +1,68 @@
+
+.sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 250px;
+    height: 100%;
+    background: #fff;
+    transition: left 0.3s ease-in-out;
+    z-index: 1000;
+    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+    
+}
+
+.sidebar .logo-name {
+    display: flex;
+    align-items: center;
+    padding: 15px;
+}
+
+.sidebar .logo-name .logo-image img {
+    width: 40px;
+    height: 40px;
+    margin-right: 10px;
+}
+
+.sidebar .menu-items {
+    margin-top: 20px;
+}
+
+.sidebar .menu-items ul {
+    list-style: none;
+    padding: 0;
+}
+
+.sidebar .menu-items ul li {
+    margin: 15px 0;
+}
+
+.sidebar .menu-items ul li a {
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+    color: #333;
+    padding: 10px 15px;
+    transition: 0.3s;
+}
+
+.sidebar .menu-items ul li a:hover {
+    background: #f0f0f0;
+    border-radius: 4px;
+}
+
+.sidebar .menu-items ul li a i {
+    margin-right: 10px;
+    font-size: 20px;
+}
+
+.dropdown-content {
+    display: none;
+    padding-left: 20px;
+}
+
+.dropdown:hover .dropdown-content {
+    display: block;
+}
+
+

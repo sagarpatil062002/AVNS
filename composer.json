@@ -1,0 +1,17 @@
+{
+    "name": "sagarpatil/avns",
+    "description": "A project for AVNS",
+    "type": "project",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Sagar Patil",
+            "email": "sagarpatil062002@gmail.com"
+        }
+    ],
+    "minimum-stability": "stable",
+    "require": {
+        "phpmailer/phpmailer": "^6.9",
+        "razorpay/razorpay": "^2.9"
+    }
+}

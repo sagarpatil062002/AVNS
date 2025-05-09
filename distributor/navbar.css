@@ -1,0 +1,292 @@
+/* ===== Google Font Import - Poppins ===== */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@200;300;400;500;600&display=swap');
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Poppins', sans-serif;
+}
+
+:root {
+    /* ===== Colors ===== */
+    --primary-color: #f5f6fa;
+    --panel-color: #FFF;
+    --text-color: #000;
+    --black-light-color: #707070;
+    --border-color: #e6e5e5;
+    --toggle-color: #DDD;
+    --box1-color: #4DA3FF;
+    --box2-color: #FFE6AC;
+    --box3-color: #E7D1FC;
+    --title-icon-color: #fff;
+    
+    /* ====== Transition ====== */
+    --tran-05: all 0.5s ease;
+    --tran-03: all 0.3s ease;
+    --tran-02: all 0.2s ease; /* Corrected variable name */
+}
+
+body {
+    min-height: 100vh;
+    background-color: var(--primary-color);
+}
+
+body.dark {
+    --primary-color: #3A3B3C;
+    --panel-color: #242526;
+    --text-color: #CCC;
+    --black-light-color: #CCC;
+    --border-color: #4D4C4C;
+    --toggle-color: #FFF;
+    --box1-color: #3A3B3C;
+    --box2-color: #3A3B3C;
+    --box3-color: #3A3B3C;
+    --title-icon-color: #CCC;
+}
+
+/* === Custom Scroll Bar CSS === */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--primary-color);
+    border-radius: 12px;
+    transition: all 0.3s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #0b3cc1;
+}
+
+body.dark::-webkit-scrollbar-thumb:hover,
+body.dark .activity-data::-webkit-scrollbar-thumb:hover {
+    background: #3A3B3C;
+}
+
+/* ===== Horizontal Navbar Styles ===== */
+nav.horizontal-nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 60px;
+    background-color: var(--panel-color);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 20px;
+    transition: var(--tran-05);
+    z-index: 1000;
+}
+
+nav.horizontal-nav .logo-name {
+    display: flex;
+    align-items: center;
+}
+
+nav.horizontal-nav .logo-image img {
+    width: 40px;
+    height: 40px;
+    object-fit: cover;
+    border-radius: 50%;
+    margin-right: 10px;
+}
+
+nav.horizontal-nav .logo_name {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text-color);
+    transition: var(--tran-05);
+}
+
+/* Hide logo name on small screens if needed */
+@media (max-width: 560px) {
+    nav.horizontal-nav .logo_name {
+        display: none;
+    }
+}
+
+nav.horizontal-nav .nav-links {
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+nav.horizontal-nav .nav-links li {
+    position: relative;
+}
+
+nav.horizontal-nav .nav-links li a {
+    color: var(--text-color);
+    text-decoration: none;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    transition: var(--tran-05);
+}
+
+nav.horizontal-nav .nav-links li a i {
+    margin-right: 8px;
+    font-size: 20px;
+    color: var(--black-light-color);
+    transition: var(--tran-05);
+}
+
+nav.horizontal-nav .nav-links li a:hover {
+    color: var(--primary-color);
+}
+
+nav.horizontal-nav .nav-links li a:hover i {
+    color: var(--primary-color);
+}
+
+/* Dropdown Styles */
+nav.horizontal-nav .dropdown-content {
+    display: none;
+    position: absolute;
+    top: 50px; /* Adjust based on navbar height */
+    left: 0;
+    background-color: var(--panel-color);
+    min-width: 160px;
+    box-shadow: 0px 8px 16px rgba(0, 0, 0, 0.2);
+    z-index: 1;
+    border: 1px solid var(--border-color);
+}
+
+nav.horizontal-nav .dropdown-content a {
+    color: var(--text-color);
+    padding: 12px 16px;
+    text-decoration: none;
+    display: block;
+    font-size: 14px;
+}
+
+nav.horizontal-nav .dropdown-content a:hover {
+    background-color: var(--primary-color);
+    color: #fff;
+}
+
+nav.horizontal-nav .dropdown:hover .dropdown-content {
+    display: block;
+}
+
+/* Logout and Mode Toggle */
+nav.horizontal-nav .logout-mode {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+nav.horizontal-nav .logout-mode a {
+    color: var(--text-color);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    font-size: 16px;
+}
+
+nav.horizontal-nav .logout-mode a i {
+    margin-right: 5px;
+    font-size: 20px;
+    color: var(--black-light-color);
+}
+
+nav.horizontal-nav .logout-mode a:hover i,
+nav.horizontal-nav .logout-mode a:hover {
+    color: var(--primary-color);
+}
+
+nav.horizontal-nav .mode-toggle {
+    position: relative;
+    width: 50px;
+    height: 25px;
+    border-radius: 25px;
+    background-color: var(--toggle-color);
+    cursor: pointer;
+    transition: var(--tran-05);
+}
+
+nav.horizontal-nav .mode-toggle .switch {
+    position: absolute;
+    top: 2.5px;
+    left: 2.5px;
+    width: 20px;
+    height: 20px;
+    background-color: var(--panel-color);
+    border-radius: 50%;
+    transition: var(--tran-03);
+}
+
+body.dark nav.horizontal-nav .mode-toggle .switch {
+    left: 27.5px;
+}
+
+/* ===== Dashboard Adjustment ===== */
+.dashboard {
+    margin-top: 60px; /* Height of the navbar */
+    padding: 20px;
+    background-color: var(--panel-color);
+    min-height: calc(100vh - 60px);
+    transition: var(--tran-05);
+}
+
+/* Remove sidebar-specific styles as navbar is horizontal */
+.dashboard .top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    background-color: var(--panel-color);
+    border-bottom: 1px solid var(--border-color);
+    z-index: 10;
+}
+
+.dashboard .top .sidebar-toggle {
+    display: none; /* Hide sidebar toggle as navbar is horizontal */
+}
+
+/* Responsive Adjustments */
+@media (max-width: 1000px) {
+    nav.horizontal-nav .nav-links {
+        gap: 15px;
+    }
+}
+
+@media (max-width: 780px) {
+    nav.horizontal-nav .nav-links li a {
+        font-size: 14px;
+    }
+}
+
+@media (max-width: 560px) {
+    nav.horizontal-nav .nav-links {
+        display: none; /* Hide nav links on very small screens */
+    }
+
+    nav.horizontal-nav .logo-name {
+        flex: 1;
+    }
+
+    nav.horizontal-nav .mode-toggle {
+        margin-left: auto;
+    }
+}
+
+@media (max-width: 400px) {
+    nav.horizontal-nav .logo_name {
+        display: none;
+    }
+
+    nav.horizontal-nav .logout-mode {
+        gap: 10px;
+    }
+}
