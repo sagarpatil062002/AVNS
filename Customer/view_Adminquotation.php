@@ -341,13 +341,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
                                                     $currentStatus = strtolower($quotation['status']);
                                                     if ($currentStatus === 'pending'): 
                                                     ?>
-                                                        <form method="POST" action="">
+                                                        <!-- <form method="POST" action="">
                                                             <input type="hidden" name="quotation_id" value="<?= htmlspecialchars($quotation['quotation_id']); ?>">
                                                             <input type="hidden" name="status" value="approved">
                                                             <button type="submit" name="update_status" class="btn btn-success">
                                                                 <i class="fas fa-check me-1"></i> Accept
                                                             </button>
-                                                        </form>
+                                                        </form> -->
                                                         <form action="editAdminquotation.php" method="GET">
                                                             <input type="hidden" name="quotation_id" value="<?= htmlspecialchars($quotation['quotation_id']); ?>">
                                                             <button type="submit" class="btn btn-primary">

@@ -1,7 +1,8 @@
 <?php
-require_once('Config.php');
-include('CustomerNav.php');
+// Start session at the very beginning
 session_start();
+
+require_once('Config.php');
 
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
@@ -23,6 +24,9 @@ if ($orderResult->num_rows === 0) {
 }
 
 $order = $orderResult->fetch_assoc();
+
+// Now include the nav after all PHP processing is done
+include('CustomerNav.php');
 ?>
 
 <!DOCTYPE html>

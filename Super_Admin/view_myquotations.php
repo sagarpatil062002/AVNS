@@ -442,7 +442,7 @@ $conn->close();
                                                     <i class="fas fa-download mr-1"></i> Download
                                                 </a>
                                                 <?php if ($quotation['purchase_id']): ?>
-                                                    <a href="view_purchase_details.php?id=<?= $quotation['purchase_id']; ?>" class="btn btn-info btn-sm">
+                                                    <a href="view_purchase_detials.php?id=<?= $quotation['purchase_id']; ?>" class="btn btn-info btn-sm">
                                                         <i class="fas fa-file-invoice mr-1"></i> PO
                                                     </a>
                                                 <?php endif; ?>

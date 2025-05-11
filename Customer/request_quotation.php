@@ -1,5 +1,6 @@
 <?php
 session_start();
+ob_start();
 
 // Database connection
 include('Config.php');

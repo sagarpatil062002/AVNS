@@ -23,42 +23,58 @@ $quotationResult = $stmt->get_result();
 $quotationData = $quotationResult->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
-// Fetch all products for dropdown
-$products = [];
-$productQuery = "SELECT id, name FROM Product";
-$productResult = $conn->query($productQuery);
-if ($productResult && $productResult->num_rows > 0) {
-    while ($row = $productResult->fetch_assoc()) {
-        $products[] = $row;
-    }
-}
-
 // Handle form submission
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $product_ids = $_POST['product_id'];
-    $quantities = $_POST['quantity'];
-    $price_offered = $_POST['price_offered'];
-    $product_row_ids = $_POST['product_row_id'];
-
-    foreach ($product_row_ids as $index => $row_id) {
-        $product_id = $product_ids[$index];
-        $quantity = $quantities[$index];
-        $price = $price_offered[$index];
-
-        if (!empty($product_id) && !empty($quantity) && !empty($price) && $quantity > 0 && $price > 0) {
-            // Update the quotation product
-            $stmt = $conn->prepare("UPDATE quotation_product 
-                                    SET productId = ?, quantity = ?, priceOffered = ? 
-                                    WHERE id = ?");
-            $stmt->bind_param("iidi", $product_id, $quantity, $price, $row_id);
-            if (!$stmt->execute()) {
-                echo "<div class='alert alert-danger'>Error updating product row: " . $conn->error . "</div>";
-            }
+    // Initialize variables
+    $errors = [];
+    
+    // Check if required arrays exist in POST data
+    if (!isset($_POST['quantity']) || !isset($_POST['price_offered']) || !isset($_POST['product_row_id'])) {
+        $errors[] = "Form data is incomplete. Please fill all fields.";
+    } else {
+        $quantities = $_POST['quantity'];
+        $price_offered = $_POST['price_offered'];
+        $product_row_ids = $_POST['product_row_id'];
+        $product_ids = $_POST['product_id']; // This will be available from hidden inputs
+        
+        // Validate arrays have same count
+        if (count($quantities) !== count($price_offered) || 
+            count($price_offered) !== count($product_row_ids)) {
+            $errors[] = "Mismatched form data. Please try again.";
         } else {
-            echo "<div class='alert alert-danger'>Please ensure all fields are filled correctly.</div>";
+            // Process each row
+            foreach ($product_row_ids as $index => $row_id) {
+                if (!isset($quantities[$index]) || !isset($price_offered[$index])) {
+                    continue; // Skip incomplete rows
+                }
+                
+                $product_id = $product_ids[$index];
+                $quantity = $quantities[$index];
+                $price = $price_offered[$index];
+                
+                if (empty($quantity) || empty($price) || $quantity <= 0 || $price <= 0) {
+                    $errors[] = "Please ensure all fields are filled correctly for row " . ($index + 1);
+                    continue;
+                }
+                
+                // Update the quotation product
+                $stmt = $conn->prepare("UPDATE quotation_product 
+                                       SET quantity = ?, priceOffered = ? 
+                                       WHERE id = ?");
+                $stmt->bind_param("idi", $quantity, $price, $row_id);
+                if (!$stmt->execute()) {
+                    $errors[] = "Error updating product row: " . $conn->error;
+                }
+            }
         }
     }
-    echo "<div class='alert alert-success'>Quotation updated successfully!</div>";
+    
+    // Display messages
+    if (!empty($errors)) {
+        echo "<div class='alert alert-danger'>" . implode("<br>", $errors) . "</div>";
+    } else {
+        echo "<div class='alert alert-success'>Quotation updated successfully!</div>";
+    }
 }
 ?>
 
@@ -314,7 +330,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         </div>
     </div>
 
-    <?php if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($success)): ?>
+    <?php if ($_SERVER["REQUEST_METHOD"] == "POST" && empty($errors)): ?>
         <div class="alert alert-success alert-dismissible fade show animate__animated animate__fadeInDown" role="alert">
             <i class="fas fa-check-circle mr-2"></i>Quotation updated successfully!
             <button type="button" class="close" data-dismiss="alert" aria-label="Close">
@@ -340,14 +356,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <?php foreach ($quotationData as $row): ?>
                     <tr class="animate__animated animate__fadeIn">
                         <td>
-                            <select name="product_id[]" class="form-control disabled-select" disabled>
-                                <?php foreach ($products as $product): ?>
-                                    <option value="<?= $product['id']; ?>" 
-                                        <?= $product['id'] == $row['productId'] ? 'selected' : ''; ?>>
-                                        <?= htmlspecialchars($product['name']); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
+                            <?= htmlspecialchars($row['product_name']); ?>
+                            <input type="hidden" name="product_id[]" value="<?= $row['productId']; ?>">
                         </td>
                         <td>
                             <div class="input-group">

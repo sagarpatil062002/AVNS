@@ -42,31 +42,56 @@ if ($productResult && $productResult->num_rows > 0) {
 }
 
 // Handle form submission
+$success = false;
+$error = false;
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $product_ids = $_POST['product_id'];
-    $quantities = $_POST['quantity'];
-    $price_offered = $_POST['price_offered'];
-    $product_row_ids = $_POST['product_row_id'];
+    // Check if all required fields are present
+    if (isset($_POST['product_id'], $_POST['quantity'], $_POST['price_offered'], $_POST['product_row_id'])) {
+        $product_ids = $_POST['product_id'];
+        $quantities = $_POST['quantity'];
+        $price_offered = $_POST['price_offered'];
+        $product_row_ids = $_POST['product_row_id'];
 
-    foreach ($product_row_ids as $index => $row_id) {
-        $product_id = $product_ids[$index];
-        $quantity = $quantities[$index];
-        $price = $price_offered[$index];
+        $all_valid = true;
+        
+        foreach ($product_row_ids as $index => $row_id) {
+            $product_id = $product_ids[$index];
+            $quantity = $quantities[$index];
+            $price = $price_offered[$index];
 
-        if (!empty($product_id) && !empty($quantity) && !empty($price) && $quantity > 0 && $price > 0) {
-            // Update the quotation product
-            $stmt = $conn->prepare("UPDATE quotation_product 
-                                    SET productId = ?, quantity = ?, priceOffered = ? 
-                                    WHERE id = ?");
-            $stmt->bind_param("iidi", $product_id, $quantity, $price, $row_id);
-            if (!$stmt->execute()) {
-                echo "<div class='alert alert-danger'>Error updating product row: " . $conn->error . "</div>";
+            if (empty($product_id) || empty($quantity) || empty($price) || $quantity <= 0 || $price <= 0) {
+                $all_valid = false;
+                $error = true;
+                break;
+            }
+        }
+
+        if ($all_valid) {
+            foreach ($product_row_ids as $index => $row_id) {
+                $product_id = $product_ids[$index];
+                $quantity = $quantities[$index];
+                $price = $price_offered[$index];
+
+                // Update the quotation product
+                $stmt = $conn->prepare("UPDATE quotation_product 
+                                        SET productId = ?, quantity = ?, priceOffered = ? 
+                                        WHERE id = ?");
+                $stmt->bind_param("iidi", $product_id, $quantity, $price, $row_id);
+                if (!$stmt->execute()) {
+                    $error = true;
+                    break;
+                }
+            }
+            
+            if (!$error) {
+                $success = true;
             }
         } else {
-            echo "<div class='alert alert-danger'>Please ensure all fields are filled correctly.</div>";
+            $error = true;
         }
+    } else {
+        $error = true;
     }
-    echo "<div class='alert alert-success'>Quotation updated successfully!</div>";
 }
 ?>
 
@@ -80,7 +105,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <link rel="stylesheet" href="style.css">
 
     <style>
-        :root {
+        /* ... (keep all your existing styles) ... */
+         :root {
             --primary-color: #4361ee;
             --secondary-color: #3f37c9;
             --accent-color: #4895ef;
@@ -322,7 +348,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         </div>
     </div>
 
-    <?php if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($success)): ?>
+    <?php if ($error): ?>
+        <div class="alert alert-danger alert-dismissible fade show animate__animated animate__fadeInDown" role="alert">
+            <i class="fas fa-exclamation-circle mr-2"></i>Please ensure all fields are filled correctly.
+            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+            </button>
+        </div>
+    <?php endif; ?>
+
+    <?php if ($success): ?>
         <div class="alert alert-success alert-dismissible fade show animate__animated animate__fadeInDown" role="alert">
             <i class="fas fa-check-circle mr-2"></i>Quotation updated successfully!
             <button type="button" class="close" data-dismiss="alert" aria-label="Close">
@@ -348,7 +383,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <?php foreach ($quotationData as $row): ?>
                     <tr class="animate__animated animate__fadeIn">
                         <td>
-                            <select name="product_id[]" class="form-control disabled-select" disabled>
+                            <select name="product_id[]" class="form-control">
                                 <?php foreach ($products as $product): ?>
                                     <option value="<?= $product['id']; ?>" 
                                         <?= $product['id'] == $row['productId'] ? 'selected' : ''; ?>>

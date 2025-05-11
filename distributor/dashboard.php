@@ -573,7 +573,6 @@ $conn->close();
     <!-- Vertical Sidebar Navigation -->
     <nav class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <div class="logo-image">A</div>
             <span class="logo_name">AVNS</span>
         </div>
         
@@ -697,7 +696,8 @@ $conn->close();
                             <td>#<?php echo $order['id']; ?></td>
                             <td><?php echo date('M d, Y', strtotime($order['order_date'])); ?></td>
                             <td><?php echo $order['items_count']; ?></td>
-                            <td>$<?php echo number_format($order['total_amount'] ?? 0, 2); ?></td>
+                            <td>₹
+<?php echo number_format($order['total_amount'] ?? 0, 2); ?></td>
                             <td>
                                 <span class="status-badge status-<?php echo strtolower($order['status']); ?>">
                                     <?php echo ucfirst($order['status']); ?>
@@ -736,7 +736,7 @@ $conn->close();
                             <td>#<?php echo $quotation['quotation_id']; ?></td>
                             <td><?php echo date('M d, Y', strtotime($quotation['createdAt'])); ?></td>
                             <td><?php echo $quotation['items_count']; ?></td>
-                            <td>$<?php echo number_format($quotation['total_amount'] ?? 0, 2); ?></td>
+                            <td>₹<?php echo number_format($quotation['total_amount'] ?? 0, 2); ?></td>
                             <td>
                                 <span class="status-badge status-<?php echo strtolower($quotation['status']); ?>">
                                     <?php echo ucfirst($quotation['status']); ?>

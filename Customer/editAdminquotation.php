@@ -33,34 +33,53 @@ if ($productResult && $productResult->num_rows > 0) {
 
 // Handle form submission
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $product_ids = $_POST['product_id'];
-    $quantities = $_POST['quantity'];
-    $price_offered = $_POST['price_offered'];
-    $product_row_ids = $_POST['product_row_id'];
+    // Initialize arrays with empty values if not set
+    $product_ids = $_POST['product_id'] ?? [];
+    $quantities = $_POST['quantity'] ?? [];
+    $price_offered = $_POST['price_offered'] ?? [];
+    $product_row_ids = $_POST['product_row_id'] ?? [];
 
-    foreach ($product_row_ids as $index => $row_id) {
-        $product_id = $product_ids[$index];
-        $quantity = $quantities[$index];
-        $price = $price_offered[$index];
-
-        if (!empty($product_id) && !empty($quantity) && !empty($price) && $quantity > 0 && $price > 0) {
-            // Update the quotation product
-            $stmt = $conn->prepare("UPDATE quotation_product 
-                                    SET productId = ?, quantity = ?, priceOffered = ? 
-                                    WHERE id = ?");
-            $stmt->bind_param("iidi", $product_id, $quantity, $price, $row_id);
-            if (!$stmt->execute()) {
-                $message = "Error updating product row: " . $conn->error;
-                $messageType = "danger";
+    // Validate that all arrays have the same length
+    if (count($product_row_ids) !== count($product_ids) || 
+        count($product_row_ids) !== count($quantities) || 
+        count($product_row_ids) !== count($price_offered)) {
+        $message = "Invalid form data submitted.";
+        $messageType = "danger";
+    } else {
+        // Process each row
+        foreach ($product_row_ids as $index => $row_id) {
+            // Make sure all required fields exist for this index
+            if (!isset($product_ids[$index]) || !isset($quantities[$index]) || !isset($price_offered[$index])) {
+                continue; // Skip this row if data is missing
             }
-        } else {
-            $message = "Please ensure all fields are filled correctly.";
-            $messageType = "danger";
+
+            $product_id = $product_ids[$index];
+            $quantity = $quantities[$index];
+            $price = $price_offered[$index];
+
+            // Validate inputs
+            if (!empty($product_id) && !empty($quantity) && !empty($price) && $quantity > 0 && $price > 0) {
+                // Update the quotation product
+                $stmt = $conn->prepare("UPDATE quotation_product 
+                                        SET productId = ?, quantity = ?, priceOffered = ? 
+                                        WHERE id = ?");
+                $stmt->bind_param("iidi", $product_id, $quantity, $price, $row_id);
+                if (!$stmt->execute()) {
+                    $message = "Error updating product row: " . $conn->error;
+                    $messageType = "danger";
+                    break; // Stop processing if there's an error
+                }
+            } else {
+                $message = "Please ensure all fields are filled correctly.";
+                $messageType = "danger";
+                break; // Stop processing if validation fails
+            }
         }
-    }
-    if (!isset($message)) {
-        $message = "Quotation updated successfully!";
-        $messageType = "success";
+        
+        if (!isset($message)) {
+            $message = "Quotation updated successfully!";
+            $messageType = "success";
+        }
     }
 }
 ?>
@@ -68,7 +87,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
+    <!-- Rest of your head section remains the same -->
+    <!-- ... -->
+     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Edit Quotation</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -254,7 +275,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                                     <?php foreach ($quotationData as $row): ?>
                                     <tr>
                                         <td>
-                                            <select name="product_id[]" class="form-control" disabled>
+                                            <select name="product_id[]" class="form-control">
                                                 <?php foreach ($products as $product): ?>
                                                     <option value="<?= $product['id']; ?>" 
                                                         <?= $product['id'] == $row['productId'] ? 'selected' : ''; ?>>

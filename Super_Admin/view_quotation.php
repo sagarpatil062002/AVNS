@@ -1,6 +1,8 @@
 <?php
 ob_start(); // Start output buffering
 session_start();
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 include "admin_navbar.php";
 
 // Database connection
@@ -14,6 +16,13 @@ $conn = new mysqli($host, $username, $password, $database);
 // Check connection
 if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
+}
+
+// Debug form submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    echo "<pre>POST data: ";
+    print_r($_POST);
+    echo "</pre>";
 }
 
 // Fetch all quotations with customer and product details, grouped by quotation_id
@@ -85,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
     $message = ($stmt->affected_rows > 0) ? "Quotation status updated successfully!" : "Failed to update quotation status.";
     $stmt->close();
 
-    header("Location: view_Adminquotation.php?message=" . urlencode($message));
+    header("Location: view_quotation.php?message=" . urlencode($message));
     exit;
 }
 ?>
@@ -229,6 +238,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
             color: #495057;
             font-weight: normal;
         }
+        
+        .form-container {
+            min-width: 200px;
+        }
     </style>
 </head>
 <body>
@@ -286,32 +299,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
                                         </button>
                                     </td>
                                     <td>
-                                        <div class="d-flex">
-                                            <form method="POST" action="" class="mr-2">
-                                                <input type="hidden" name="quotation_id" value="<?= $quotation['quotation_id'] ?>">
-                                                <select name="status" class="select-status" required <?= $quotation['status'] == 'APPROVED' ? 'disabled' : '' ?>>
-                                                    <option value="PENDING" <?= $quotation['status'] == 'PENDING' ? 'selected' : '' ?>>Pending</option>
-                                                    <option value="APPROVED" <?= $quotation['status'] == 'APPROVED' ? 'selected' : '' ?>>Approved</option>
-                                                    <option value="REJECTED" <?= $quotation['status'] == 'REJECTED' ? 'selected' : '' ?>>Rejected</option>
-                                                </select>
-                                                <?php if ($quotation['status'] != 'APPROVED'): ?>
-                                                    <button type="submit" name="update_status" class="btn btn-update btn-action btn-block mt-2">
-                                                        <i class="fas fa-sync-alt"></i> Update
-                                                    </button>
-                                                <?php endif; ?>
-                                            </form>
+                                        <div class="d-flex flex-wrap">
+                                            <div class="form-container mr-2 mb-2">
+                                                <form method="POST" action="view_quotation.php">
+                                                    <input type="hidden" name="quotation_id" value="<?= $quotation['quotation_id'] ?>">
+                                                    <select name="status" class="select-status" required <?= $quotation['status'] == 'APPROVED' ? 'disabled' : '' ?>>
+                                                        <option value="PENDING" <?= $quotation['status'] == 'PENDING' ? 'selected' : '' ?>>Pending</option>
+                                                        <option value="APPROVED" <?= $quotation['status'] == 'APPROVED' ? 'selected' : '' ?>>Approved</option>
+                                                        <option value="REJECTED" <?= $quotation['status'] == 'REJECTED' ? 'selected' : '' ?>>Rejected</option>
+                                                    </select>
+                                                    <?php if ($quotation['status'] != 'APPROVED'): ?>
+                                                        <button type="submit" name="update_status" class="btn btn-update btn-action btn-block mt-2">
+                                                            <i class="fas fa-sync-alt"></i> Update
+                                                        </button>
+                                                    <?php endif; ?>
+                                                </form>
+                                            </div>
                                             
-                                            <?php if ($quotation['status'] == 'APPROVED'): ?>
-                                                <a href="download_customer_quotation.php?quotation_id=<?= $quotation['quotation_id'] ?>" 
-                                                   class="btn btn-download btn-action">
-                                                    <i class="fas fa-download"></i> PDF
-                                                </a>
-                                            <?php else: ?>
-                                                <a href="edit_quotation.php?quotation_id=<?= $quotation['quotation_id'] ?>" 
-                                                   class="btn btn-view btn-action">
-                                                    <i class="fas fa-edit"></i> Edit
-                                                </a>
-                                            <?php endif; ?>
+                                            <div class="d-flex align-items-center">
+                                                <?php if ($quotation['status'] == 'APPROVED'): ?>
+                                                    <a href="download_customer_quotation.php?quotation_id=<?= $quotation['quotation_id'] ?>" 
+                                                       class="btn btn-download btn-action">
+                                                        <i class="fas fa-download"></i> PDF
+                                                    </a>
+                                                <?php else: ?>
+                                                    <a href="edit_quotation.php?quotation_id=<?= $quotation['quotation_id'] ?>" 
+                                                       class="btn btn-view btn-action">
+                                                        <i class="fas fa-edit"></i> Edit
+                                                    </a>
+                                                <?php endif; ?>
+                                            </div>
                                         </div>
                                     </td>
                                 </tr>

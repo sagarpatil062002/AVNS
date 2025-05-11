@@ -51,7 +51,7 @@ $conn->close();
 <html lang="en" dir="ltr">
 <head>
     <meta charset="utf-8">
-    <title>Customer Login</title>
+    <title>Distributor Login</title>
     <style>
         @import url('https://fonts.googleapis.com/css?family=Poppins:400,500,600,700&display=swap');
         * {

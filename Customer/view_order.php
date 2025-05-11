@@ -1,8 +1,10 @@
 <?php
+// Start session at the very beginning
+session_start();
+
 // Database connection
 include('Config.php');
 include('CustomerNav.php');
-session_start();
 
 // Check if the customer is logged in
 if (isset($_SESSION['user_id'])) {
