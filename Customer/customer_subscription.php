@@ -2,6 +2,7 @@
 session_start(); // Start session management
 include 'config.php'; // Include database connection
 include 'CustomerNav.php';
+$res=true;
 
 if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
@@ -19,19 +20,7 @@ if (!$sectorId) {
     die("Unable to determine your sector. Please contact support.");
 }
 
-// Check if the customer already has an active subscription
-$checkSubscriptionQuery = "SELECT * FROM customer_subscription WHERE user_id = ? AND status = 'Approved' AND end_date IS NULL";
-$stmt = $conn->prepare($checkSubscriptionQuery);
-$stmt->bind_param("i", $customerId);
-$stmt->execute();
-$subscriptionResult = $stmt->get_result();
 
-if ($subscriptionResult && $subscriptionResult->num_rows > 0) {
-    // Customer has an active subscription
-} else {
-    // No active subscription
-}
-$stmt->close();
 
 // Check if the customer's subscription has expired
 $expiredSubscriptionQuery = "SELECT * FROM customer_subscription WHERE user_id = ? AND status = 'Approved' AND isexpired = 1";
@@ -280,6 +269,37 @@ shuffle($planColors);
     </style>
 </head>
 <body>
+
+<?php
+                                       // Assuming $customerId is the ID of the customer you want to check
+$customerId = $_SESSION['user_id']; // Example, you can get this from session or request
+
+// Step 1: Check if the user exists in the database
+// $checkUserQuery = "SELECT * FROM customers WHERE id = ?";
+// $stmt = $conn->prepare($checkUserQuery);
+// $stmt->bind_param("i", $customerId);
+// $stmt->execute();
+// $userResult = $stmt->get_result();
+
+if ($customerId >= 0) {
+    // Customer exists, proceed to check subscription
+    // Step 2: Check if the customer has an active subscription
+    $checkSubscriptionQuery = "SELECT * FROM customer_subscription WHERE user_id = ? AND isexpired = 0";
+    $stmt = $conn->prepare($checkSubscriptionQuery);
+    $stmt->bind_param("i", $customerId);
+    $stmt->execute();
+    $subscriptionResult = $stmt->get_result();
+
+    if ($subscriptionResult && $subscriptionResult->num_rows > 0) {
+        // Customer has an active subscription, stop execution
+        // echo "You already have an active subscription.";
+        $res=false;
+        // exit; // Stop further processing
+    }
+    $stmt->close();
+}
+                                       
+                                       ?>
     <div class="container-fluid">
         <div class="row justify-content-center">
             <div class="col-xl-10 col-lg-12">
@@ -287,14 +307,30 @@ shuffle($planColors);
                     <h1 class="plans-header">
                         <i class="fas fa-crown me-2"></i>Sector Specific Subscription Plans
                     </h1>
+
+                    <!-- ↓ INSERT THIS BLOCK ↓ -->
+  <?php if (!$res): ?>
+    <div id="activeAlert" class="alert alert-warning text-center" role="alert">
+      <i class="fas fa-exclamation-triangle me-2"></i>
+      You already have an active subscription.
+    </div>
+  <?php endif; ?>
+  <!-- ↑ END INSERTION ↑ -->
+                    
                     
                     <?php if ($showReminder): ?>
-                        <div class="reminder">
+                        <div id="reminder" class="reminder">
                             <i class="fas fa-exclamation-circle me-2"></i>
                             Your subscription has expired. Please renew it to continue enjoying our services.
                         </div>
                     <?php endif; ?>
                     
+ 
+                   
+
+
+
+
                     <div class="plan-grid">
                         <?php foreach ($plans as $index => $plan): ?>
                             <div class="card plan-card" style="background-color: <?php echo $planColors[$index % count($planColors)]; ?>">
@@ -332,6 +368,11 @@ shuffle($planColors);
                                         </select>
                                     </div>
 
+                                           
+                                   
+
+
+
                                     <form action="payment_gateway.php" method="GET" class="purchase-form" id="form-<?php echo $plan['id']; ?>">
                                         <input type="hidden" name="plan_id" value="<?php echo $plan['id']; ?>">
                                         <input type="hidden" id="base-price-<?php echo $plan['id']; ?>" name="base_price" value="<?php echo $plan['base_price']; ?>">
@@ -339,7 +380,7 @@ shuffle($planColors);
                                         <input type="hidden" name="sectorId" value="<?php echo $sectorId; ?>">
                                         <input type="hidden" id="tenure-hidden-<?php echo $plan['id']; ?>" name="tenure" value="1">
                                         <input type="hidden" name="customer_id" value="<?php echo $customerId; ?>">
-                                        <button type="submit" class="btn btn-primary">
+                                        <button type="submit" class="btn btn-primary" <?php echo ($res == false) ? 'disabled' : ''; ?>>
                                             <i class="fas fa-shopping-cart me-2"></i>Buy Now
                                         </button>
                                     </form>
@@ -387,5 +428,42 @@ shuffle($planColors);
             });
         });
     </script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+    // Check if the reminder element exists
+    const reminder = document.getElementById('reminder');
+    if (reminder) {
+        // Hide the reminder after 3 seconds
+        setTimeout(function() {
+            reminder.style.display = 'none';
+        }, 3000); // 3000 milliseconds = 3 seconds
+    }
+});
+    </script>
+
+    <script>
+        
+document.addEventListener('DOMContentLoaded', function() {
+  const alertBox = document.getElementById('activeAlert');
+  if (alertBox) {
+    setTimeout(() => {
+      // Option 1: Fade it out by adding Bootstrap’s fade class, then remove
+      alertBox.classList.add('fade');
+      alertBox.classList.remove('show');
+      setTimeout(() => alertBox.remove(), 150); // remove after fade completes
+      
+      // —OR—
+      // Option 2: Just remove it immediately:
+      // alertBox.remove();
+    }, 3000);
+  }
+});
+
+
+    </script>
+
+
+
+    
 </body>
 </html>

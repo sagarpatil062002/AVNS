@@ -350,11 +350,11 @@ $api = new Api($razorpayKeyId, $razorpayKeySecret);
                                                             <i class="fas fa-rupee-sign me-1"></i> Pay Now
                                                         </button>
                                                     <?php endif; ?>
-                                                    <?php if ($order['payment_status'] == 'paid' && isset($order['invoice_id'])): ?>
+                                                   <!----- <?php if ($order['payment_status'] == 'paid' && isset($order['invoice_id'])): ?>
                                                         <a href="view_invoices.php?id=<?php echo $order['invoice_id']; ?>" class="btn btn-primary" target="_blank">
                                                             <i class="fas fa-file-invoice me-1"></i> Invoice
                                                         </a>
-                                                    <?php endif; ?>
+                                                    <?php endif; ?> --->
                                                 </div>
                                             </td>
                                         </tr>

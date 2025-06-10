@@ -23,7 +23,7 @@ $sector_id = intval($_GET['sectorId']);
 // Check if customer already has an active subscription
 $checkSubscriptionQuery = "SELECT * FROM customer_subscription 
                          WHERE user_id = ? AND status = 'Approved' 
-                         AND (end_date IS NULL OR end_date > NOW())";
+                         AND (end_date IS NULL OR end_date > NOW() ) AND isexpired=0 ";
 $stmt = $conn->prepare($checkSubscriptionQuery);
 $stmt->bind_param("i", $customer_id);
 $stmt->execute();

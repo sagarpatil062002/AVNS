@@ -1,5 +1,6 @@
 <?php
 // Start the session
+ob_start();
 session_start();
 include('CustomerNav.php');
 
@@ -24,7 +25,9 @@ $stmt->close();
 
 // Fetch quotations and related product details
 $quotationQuery = "
-    SELECT qh.quotation_id, qh.subject, qp.productId, p.name AS productName, qp.quantity, qp.priceOffered, tr.tax_percentage AS taxPercentage, qh.status, qh.createdAt
+    SELECT qh.quotation_id, qh.subject, qp.productId, p.name AS productName, qp.quantity, qp.priceOffered, 
+           tr.tax_percentage AS taxPercentage, qh.status, qh.createdAt,
+           qh.customer_approval, qh.superadmin_approval
     FROM quotation_header qh
     JOIN quotation_product qp ON qh.quotation_id = qp.quotation_id
     JOIN product p ON qp.productId = p.id
@@ -46,6 +49,8 @@ while ($row = $result->fetch_assoc()) {
             'subject' => $row['subject'],
             'createdAt' => $row['createdAt'],
             'status' => $row['status'],
+            'customer_approval' => $row['customer_approval'],
+            'superadmin_approval' => $row['superadmin_approval'],
             'products' => []
         ];
     }
@@ -58,34 +63,64 @@ while ($row = $result->fetch_assoc()) {
 }
 $stmt->close();
 
-// Handle status update
+// Handle status update (Customer side - only updates customer_approval)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
     $quotation_id = $_POST['quotation_id'];
     $new_status = $_POST['status'];
 
-    $updateQuery = "UPDATE quotation_header SET status = ? WHERE quotation_id = ?";
+    // Update only customer approval
+    $updateQuery = "UPDATE quotation_header SET customer_approval = ? WHERE quotation_id = ?";
     $stmt = $conn->prepare($updateQuery);
     $stmt->bind_param("si", $new_status, $quotation_id);
     $stmt->execute();
 
-    if ($stmt->affected_rows > 0 && strtolower($new_status) === 'approved') {
-        // Fetch all products for this quotation
-        $productStmt = $conn->prepare("SELECT productId, quantity FROM quotation_product WHERE quotation_id = ?");
-        $productStmt->bind_param("i", $quotation_id);
-        $productStmt->execute();
-        $productResult = $productStmt->get_result();
+    // Check if both approvals are now APPROVED
+    $approvalQuery = "SELECT customer_approval, superadmin_approval 
+                     FROM quotation_header WHERE quotation_id = ?";
+    $approvalStmt = $conn->prepare($approvalQuery);
+    $approvalStmt->bind_param("i", $quotation_id);
+    $approvalStmt->execute();
+    $approvalResult = $approvalStmt->get_result();
+    $approvalRow = $approvalResult->fetch_assoc();
+    $approvalStmt->close();
 
-        // Insert each product as an order
-        while ($productRow = $productResult->fetch_assoc()) {
-            $productId = $productRow['productId'];
-            $quantity = $productRow['quantity'];
-            $orderStatus = 'IN_PROCESS';
-            $insertOrder = $conn->prepare("INSERT INTO order_details (customerId, status, productId, quantity, custom_product_name) VALUES (?, ?, ?, ?, NULL)");
-            $insertOrder->bind_param("isii", $customerId, $orderStatus, $productId, $quantity);
-            $insertOrder->execute();
-            $insertOrder->close();
+    // Determine final status
+    if ($approvalRow['superadmin_approval'] == 'APPROVED' && $approvalRow['customer_approval'] == 'APPROVED') {
+        $finalStatus = 'APPROVED';
+    } elseif ($approvalRow['superadmin_approval'] == 'REJECTED' || $approvalRow['customer_approval'] == 'REJECTED') {
+        $finalStatus = 'REJECTED';
+    } else {
+        $finalStatus = 'PENDING';
+    }
+
+    // Update final status if needed
+    if ($finalStatus != $approvalRow['status']) {
+        $updateStatusQuery = "UPDATE quotation_header SET status = ? WHERE quotation_id = ?";
+        $statusStmt = $conn->prepare($updateStatusQuery);
+        $statusStmt->bind_param("si", $finalStatus, $quotation_id);
+        $statusStmt->execute();
+        $statusStmt->close();
+
+        // Create orders if final status is APPROVED
+        if ($finalStatus == 'APPROVED') {
+            // Fetch all products for this quotation
+            $productStmt = $conn->prepare("SELECT productId, quantity FROM quotation_product WHERE quotation_id = ?");
+            $productStmt->bind_param("i", $quotation_id);
+            $productStmt->execute();
+            $productResult = $productStmt->get_result();
+
+            // Insert each product as an order
+            while ($productRow = $productResult->fetch_assoc()) {
+                $productId = $productRow['productId'];
+                $quantity = $productRow['quantity'];
+                $orderStatus = 'IN_PROCESS';
+                $insertOrder = $conn->prepare("INSERT INTO order_details (customerId, status, productId, quantity, custom_product_name) VALUES (?, ?, ?, ?, NULL)");
+                $insertOrder->bind_param("isii", $customerId, $orderStatus, $productId, $quantity);
+                $insertOrder->execute();
+                $insertOrder->close();
+            }
+            $productStmt->close();
         }
-        $productStmt->close();
     }
 
     $message = ($stmt->affected_rows > 0) ? "Quotation status updated successfully!" : "Failed to update quotation status.";
@@ -99,7 +134,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
+<meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Quotations</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -271,6 +306,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
             color: #b78a00;
         }
         
+        .approval-status {
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
+            color: var(--gray);
+        }
+        
+        .approval-approved {
+            color: var(--success);
+        }
+        
+        .approval-pending {
+            color: var(--warning);
+        }
+        
+        .approval-rejected {
+            color: var(--danger);
+        }
+        
         @media (max-width: 992px) {
             .quotation-container {
                 margin-left: 0;
@@ -294,7 +347,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
             }
         }
     </style>
-</head>
+    </head>
 <body>
     <div class="container-fluid">
         <div class="row justify-content-center">
@@ -333,34 +386,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
                                                 <span class="status-badge status-<?= strtolower($quotation['status']); ?>">
                                                     <?= htmlspecialchars($quotation['status']); ?>
                                                 </span>
+                                                <div class="approval-status">
+                                                    <div class="<?= strtolower($quotation['customer_approval']) == 'approved' ? 'approval-approved' : 
+                                                                 (strtolower($quotation['customer_approval']) == 'pending' ? 'approval-pending' : 'approval-rejected') ?>">
+                                                        Customer: <?= htmlspecialchars($quotation['customer_approval']); ?>
+                                                    </div>
+                                                    <div class="<?= strtolower($quotation['superadmin_approval']) == 'approved' ? 'approval-approved' : 
+                                                                 (strtolower($quotation['superadmin_approval']) == 'pending' ? 'approval-pending' : 'approval-rejected') ?>">
+                                                        Superadmin: <?= htmlspecialchars($quotation['superadmin_approval']); ?>
+                                                    </div>
+                                                </div>
                                             </td>
                                             <td rowspan="<?= count($quotation['products']); ?>"><?= date('M d, Y h:i A', strtotime($quotation['createdAt'])); ?></td>
                                             <td rowspan="<?= count($quotation['products']); ?>">
                                                 <div class="action-buttons">
-                                                    <?php 
-                                                    $currentStatus = strtolower($quotation['status']);
-                                                    if ($currentStatus === 'pending'): 
-                                                    ?>
-                                                        <!-- <form method="POST" action="">
+                                                    <?php if ($quotation['customer_approval'] == 'PENDING'): ?>
+                                                        <form method="POST" action="">
                                                             <input type="hidden" name="quotation_id" value="<?= htmlspecialchars($quotation['quotation_id']); ?>">
-                                                            <input type="hidden" name="status" value="approved">
-                                                            <button type="submit" name="update_status" class="btn btn-success">
-                                                                <i class="fas fa-check me-1"></i> Accept
-                                                            </button>
-                                                        </form> -->
-                                                        <form action="editAdminquotation.php" method="GET">
-                                                            <input type="hidden" name="quotation_id" value="<?= htmlspecialchars($quotation['quotation_id']); ?>">
-                                                            <button type="submit" class="btn btn-primary">
-                                                                <i class="fas fa-edit me-1"></i> Edit
+                                                            <select name="status" class="form-select mb-2" required>
+                                                                <option value="PENDING" <?= $quotation['customer_approval'] == 'PENDING' ? 'selected' : '' ?>>Pending</option>
+                                                                <option value="APPROVED">Approve</option>
+                                                                <option value="REJECTED">Reject</option>
+                                                            </select>
+                                                            <button type="submit" name="update_status" class="btn btn-success w-100">
+                                                                <i class="fas fa-save me-1"></i> Update Status
                                                             </button>
                                                         </form>
-                                                        <form action="view_quotation_products.php" method="GET">
-                                                            <input type="hidden" name="quotation_id" value="<?= htmlspecialchars($quotation['quotation_id']); ?>">
-                                                            <button type="submit" class="btn btn-info">
-                                                                <i class="fas fa-eye me-1"></i> View
-                                                            </button>
-                                                        </form>
-                                                    <?php elseif ($currentStatus === 'approved'): ?>
+                                                    <?php endif; ?>
+                                                    <form action="editAdminquotation.php" method="GET">
+                                                        <input type="hidden" name="quotation_id" value="<?= htmlspecialchars($quotation['quotation_id']); ?>">
+                                                        <button type="submit" class="btn btn-primary">
+                                                            <i class="fas fa-edit me-1"></i> Edit
+                                                        </button>
+                                                    </form>
+                                                    <form action="view_quotation_products.php" method="GET">
+                                                        <input type="hidden" name="quotation_id" value="<?= htmlspecialchars($quotation['quotation_id']); ?>">
+                                                        <button type="submit" class="btn btn-info">
+                                                            <i class="fas fa-eye me-1"></i> View
+                                                        </button>
+                                                    </form>
+                                                    <?php if ($quotation['status'] == 'APPROVED'): ?>
                                                         <form action="download_quotation.php" method="GET">
                                                             <input type="hidden" name="quotation_id" value="<?= htmlspecialchars($quotation['quotation_id']); ?>">
                                                             <button type="submit" name="download_pdf" class="btn btn-danger">
@@ -373,7 +438,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
                                         </tr>
                                         <?php foreach (array_slice($quotation['products'], 1) as $product): ?>
                                             <tr>
-                                                <td></td> <!-- Empty cell for status since we're showing it only once -->
+                                                <td></td>
                                             </tr>
                                         <?php endforeach; ?>
                                     <?php endforeach; ?>
@@ -393,13 +458,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // Initialize Bootstrap tooltips
-        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-            return new bootstrap.Tooltip(tooltipTriggerEl);
-        });
-    </script>
 </body>
 </html>
 

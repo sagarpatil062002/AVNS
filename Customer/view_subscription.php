@@ -12,17 +12,38 @@ if (!isset($_SESSION['user_id'])) {
 $customerId = $_SESSION['user_id'];
 $hasExpiredSubscription = false;
 
+
+// Update expired subscriptions
+$updateSql = "
+    UPDATE customer_subscription 
+    SET isexpired = 1 
+    WHERE user_id = ? 
+       AND (
+      (end_date < NOW() AND isexpired = 0)
+      OR remaining_calls = 0
+  )
+";
+$updateStmt = $conn->prepare($updateSql);
+if ($updateStmt) {
+    $updateStmt->bind_param("i", $customerId);
+    $updateStmt->execute();
+    $updateStmt->close();
+}
+
+
 // Query to fetch subscription details
 $sql = "
     SELECT 
-        cs.id, cs.tenure, cs.status, cs.created_at, 
-        cs.isexpired, cs.remaining_calls, cs.start_date, cs.end_date,
-        cp.name AS plan_name,
-        cs.payment_id, cs.amount
-    FROM customer_subscription cs
-    JOIN customer_plan cp ON cs.plan_id = cp.id
-    WHERE cs.user_id = ?
-    ORDER BY cs.created_at DESC
+            cs.id, cs.plan_id, cs.tenure, cs.status, cs.created_at, 
+            cs.isexpired, cs.remaining_calls, cs.start_date, cs.end_date,
+            cp.name AS plan_name,
+            cs.payment_id, cs.amount,
+            cd.sectorId
+        FROM customer_subscription cs
+        JOIN customer_plan cp ON cs.plan_id = cp.id
+        JOIN customerdistributor cd ON cd.id = cs.user_id
+        WHERE cs.user_id = ?
+        ORDER BY cs.created_at DESC
 ";
 
 $stmt = $conn->prepare($sql);
@@ -32,6 +53,16 @@ if (!$stmt) {
 $stmt->bind_param("i", $customerId);
 $stmt->execute();
 $result = $stmt->get_result();
+
+$hasExpiredSubscription = false;
+$subscriptions = [];
+
+while ($row = $result->fetch_assoc()) {
+    $subscriptions[] = $row;
+    if ($row['isexpired'] == 1) {
+        $hasExpiredSubscription = true;
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -132,11 +163,23 @@ $result = $stmt->get_result();
     </style>
 </head>
 <body>
-    <?php if ($hasExpiredSubscription): ?>
-        <div class="reminder-banner alert alert-danger text-center mb-0">
-            <i class="bi bi-exclamation-triangle-fill"></i> Your subscription has expired! Please renew it to continue using our services.
-        </div>
-    <?php endif; ?>
+<?php if ($hasExpiredSubscription): ?>
+    <div id="expired-alert" class="alert alert-danger alert-dismissible fade show text-center mb-0" role="alert" style="z-index: 9999;">
+        <strong>Your subscription has expired!</strong> Renew it now to continue using our services.
+    </div>
+
+    <script>
+        // Auto-dismiss the alert after 3 seconds
+        setTimeout(() => {
+            const alert = document.getElementById('expired-alert');
+            if (alert) {
+                alert.classList.remove('show');
+                alert.classList.add('hide');
+            }
+        }, 3000);
+    </script>
+<?php endif; ?>
+
 
     <div class="subscription-container">
         <div class="subscription-header">
@@ -146,14 +189,14 @@ $result = $stmt->get_result();
             <p class="lead">View and manage your active subscriptions</p>
         </div>
         
-        <?php if ($result->num_rows > 0): ?>
-            <div class="row">
-                <?php while ($row = $result->fetch_assoc()): 
+        <?php if (count($subscriptions) > 0): ?>
+           <div class="row">
+        <?php foreach ($subscriptions as $row):
                     $isExpired = $row['isexpired'] == 1;
                     $isActive = $row['status'] === 'Approved' && !$isExpired;
                     $isPending = $row['status'] === 'Pending';
                     
-                    if ($isExpired) $hasExpiredSubscription = true;
+                    
                 ?>
                     <div class="col-md-6 mb-4">
                         <div class="card subscription-card h-100">
@@ -203,10 +246,17 @@ $result = $stmt->get_result();
                                     </div>
                                 </div>
                                 
+                              <?php
+                               $plan_id = $row['plan_id'];
+                               $tenure = $row['tenure'];
+                               $amount = $row['amount'];
+                               $subscription_id = $row['id'];
+                               $sector_id = $row['sectorId']; // From user table
+                              ?>  
                                 <div class="d-flex flex-wrap mt-4">
                                     <?php if ($isExpired): ?>
-                                        <a href="customer_subscription.php?subscription_id=<?php echo $row['id']; ?>" 
-                                           class="btn btn-danger action-btn">
+                                        <a href="payment_gateway.php?plan_id=<?php echo $row['plan_id']; ?>&amount=<?php echo $row['amount']; ?>&tenure=<?php echo $row['tenure']; ?>&customer_id=<?php echo $customerId; ?>&sectorId=<?php echo $sector_id; ?>" 
+                                            class="btn btn-danger action-btn">
                                             <i class="bi bi-arrow-repeat"></i> Renew Now
                                         </a>
                                     <?php endif; ?>
@@ -219,7 +269,7 @@ $result = $stmt->get_result();
                             </div>
                         </div>
                     </div>
-                <?php endwhile; ?>
+                <?php endforeach; ?>
             </div>
         <?php else: ?>
             <div class="alert alert-info text-center py-4">

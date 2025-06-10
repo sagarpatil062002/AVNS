@@ -7,11 +7,12 @@ include('Config.php');
 include('DNav.php');
 
 // Check if quotation ID is provided in the URL
-if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
+if (!isset($_GET['quotation_id']) || !is_numeric($_GET['quotation_id'])) {
     die("<div class='alert alert-danger'>Invalid quotation ID.</div>");
 }
 
-$quotationId = (int)$_GET['id'];
+$quotationId = (int)$_GET['quotation_id'];
+
 
 // Fetch existing quotation data
 $quotationQuery = "SELECT qp.id AS product_row_id, qp.productId, qp.quantity, qp.priceOffered, p.name AS product_name 

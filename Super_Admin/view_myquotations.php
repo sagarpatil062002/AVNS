@@ -32,6 +32,8 @@ if (isset($_SESSION['user_id'])) {
                 qh.updatedAt, 
                 qh.subject, 
                 qh.distributorId,
+                qh.superadmin_approval,
+                qh.distributor_approval,
                 d.companyName AS distributor_name,
                 pd.id AS purchase_id
             FROM quotation_header qh
@@ -55,6 +57,8 @@ if (isset($_SESSION['user_id'])) {
             'distributor_name' => $quotation['distributor_name'],
             'distributor_id' => $quotation['distributorId'],
             'status' => $quotation['status'],
+            'superadmin_approval' => $quotation['superadmin_approval'],
+            'distributor_approval' => $quotation['distributor_approval'],
             'createdAt' => $quotation['createdAt'],
             'updatedAt' => $quotation['updatedAt'],
             'purchase_id' => $quotation['purchase_id'],
@@ -62,89 +66,112 @@ if (isset($_SESSION['user_id'])) {
         ];
     }
 
-    // Handle status update
+    // Handle status update (Superadmin side - only updates superadmin_approval)
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
         $quotationId = $_POST['quotation_id'];
         $newStatus = $_POST['status'];
 
-        // Update the quotation status in the database
-        $updateSql = "UPDATE quotation_header SET status = ? WHERE quotation_id = ?";
+        // Update only superadmin approval
+        $updateSql = "UPDATE quotation_header SET superadmin_approval = ? WHERE quotation_id = ?";
         $updateStmt = $conn->prepare($updateSql);
         $updateStmt->bind_param("si", $newStatus, $quotationId);
-        
-        if ($updateStmt->execute()) {
-            // If status was changed to APPROVED, create purchase order
-            if (strtoupper($newStatus) == 'APPROVED') {
-                // Get quotation products
-                $productsQuery = "SELECT qp.*, p.name FROM quotation_product qp 
-                                 JOIN product p ON qp.productId = p.id 
-                                 WHERE qp.quotation_id = ?";
-                $productsStmt = $conn->prepare($productsQuery);
-                $productsStmt->bind_param("i", $quotationId);
-                $productsStmt->execute();
-                $productsResult = $productsStmt->get_result();
-                
-                // Get default tax rate
-                $taxQuery = "SELECT tax_name, tax_percentage FROM tax_rates LIMIT 1";
-                $taxResult = $conn->query($taxQuery);
-                $taxData = $taxResult->fetch_assoc();
-                $taxRate = $taxData['tax_percentage'] ?? 0;
-                $taxName = $taxData['tax_name'] ?? 'Tax';
-                
-                // Create purchase details
-                $purchaseSql = "INSERT INTO purchase_details 
-                               (distributor_id, super_admin_id, quotation_id, total_amount, total_tax, created_at) 
-                               VALUES (?, ?, ?, 0, 0, NOW())";
-                $purchaseStmt = $conn->prepare($purchaseSql);
-                $distributorId = $groupedQuotations[$quotationId]['distributor_id'];
-                $purchaseStmt->bind_param("iii", $distributorId, $superAdminId, $quotationId);
-                $purchaseStmt->execute();
-                $purchase_id = $conn->insert_id;
-                
-                $total_amount = 0;
-                $total_tax = 0;
-                
-                // Insert purchase items
-                while ($product = $productsResult->fetch_assoc()) {
-                    $quantity = $product['quantity'];
-                    $price = $product['priceOffered'];
-                    $total_before_tax = $quantity * $price;
-                    $total_tax_for_product = $total_before_tax * ($taxRate / 100);
-                    $total_with_tax = $total_before_tax + $total_tax_for_product;
-                    
-                    $itemSql = "INSERT INTO purchase_items 
-                               (purchase_id, product_name, quantity, price, total, tax, tax_name) 
-                               VALUES (?, ?, ?, ?, ?, ?, ?)";
-                    $itemStmt = $conn->prepare($itemSql);
-                    $itemStmt->bind_param("isiddds", 
-                        $purchase_id, 
-                        $product['name'], 
-                        $quantity, 
-                        $price, 
-                        $total_with_tax, 
-                        $total_tax_for_product, 
-                        $taxName
-                    );
-                    $itemStmt->execute();
-                    
-                    $total_amount += $total_before_tax;
-                    $total_tax += $total_tax_for_product;
-                }
-                
-                // Update purchase details with final totals
-                $updatePurchaseSql = "UPDATE purchase_details 
-                                    SET total_amount = ?, total_tax = ? 
-                                    WHERE id = ?";
-                $updatePurchaseStmt = $conn->prepare($updatePurchaseSql);
-                $updatePurchaseStmt->bind_param("ddi", $total_amount, $total_tax, $purchase_id);
-                $updatePurchaseStmt->execute();
-                
-                $_SESSION['success_message'] = "Quotation approved and purchase order #$purchase_id created successfully!";
-            } else {
-                $_SESSION['success_message'] = "Status updated successfully!";
-            }
+        $updateStmt->execute();
+
+        // Check current approvals to determine final status
+        $approvalQuery = "SELECT superadmin_approval, distributor_approval 
+                         FROM quotation_header WHERE quotation_id = ?";
+        $approvalStmt = $conn->prepare($approvalQuery);
+        $approvalStmt->bind_param("i", $quotationId);
+        $approvalStmt->execute();
+        $approvalResult = $approvalStmt->get_result();
+        $approvalRow = $approvalResult->fetch_assoc();
+        $approvalStmt->close();
+
+        // Determine final status
+        if ($approvalRow['superadmin_approval'] == 'APPROVED' && $approvalRow['distributor_approval'] == 'APPROVED') {
+            $finalStatus = 'APPROVED';
+        } elseif ($approvalRow['superadmin_approval'] == 'REJECTED' || $approvalRow['distributor_approval'] == 'REJECTED') {
+            $finalStatus = 'REJECTED';
         } else {
-            $_SESSION['error_message'] = "Failed to update status.";
+            $finalStatus = 'PENDING';
+        }
+
+        // Update final status
+        $updateStatusQuery = "UPDATE quotation_header SET status = ? WHERE quotation_id = ?";
+        $statusStmt = $conn->prepare($updateStatusQuery);
+        $statusStmt->bind_param("si", $finalStatus, $quotationId);
+        $statusStmt->execute();
+        $statusStmt->close();
+
+        // Only create purchase order if final status is APPROVED and superadmin approved
+        if ($finalStatus == 'APPROVED' && strtoupper($newStatus) == 'APPROVED') {
+            // Get quotation products
+            $productsQuery = "SELECT qp.*, p.name FROM quotation_product qp 
+                             JOIN product p ON qp.productId = p.id 
+                             WHERE qp.quotation_id = ?";
+            $productsStmt = $conn->prepare($productsQuery);
+            $productsStmt->bind_param("i", $quotationId);
+            $productsStmt->execute();
+            $productsResult = $productsStmt->get_result();
+            
+            // Get default tax rate
+            $taxQuery = "SELECT tax_name, tax_percentage FROM tax_rates LIMIT 1";
+            $taxResult = $conn->query($taxQuery);
+            $taxData = $taxResult->fetch_assoc();
+            $taxRate = $taxData['tax_percentage'] ?? 0;
+            $taxName = $taxData['tax_name'] ?? 'Tax';
+            
+            // Create purchase details
+            $purchaseSql = "INSERT INTO purchase_details 
+                           (distributor_id, super_admin_id, quotation_id, total_amount, total_tax, created_at) 
+                           VALUES (?, ?, ?, 0, 0, NOW())";
+            $purchaseStmt = $conn->prepare($purchaseSql);
+            $distributorId = $groupedQuotations[$quotationId]['distributor_id'];
+            $purchaseStmt->bind_param("iii", $distributorId, $superAdminId, $quotationId);
+            $purchaseStmt->execute();
+            $purchase_id = $conn->insert_id;
+            
+            $total_amount = 0;
+            $total_tax = 0;
+            
+            // Insert purchase items
+            while ($product = $productsResult->fetch_assoc()) {
+                $quantity = $product['quantity'];
+                $price = $product['priceOffered'];
+                $total_before_tax = $quantity * $price;
+                $total_tax_for_product = $total_before_tax * ($taxRate / 100);
+                $total_with_tax = $total_before_tax + $total_tax_for_product;
+                
+                $itemSql = "INSERT INTO purchase_items 
+                           (purchase_id, product_name, quantity, price, total, tax, tax_name) 
+                           VALUES (?, ?, ?, ?, ?, ?, ?)";
+                $itemStmt = $conn->prepare($itemSql);
+                $itemStmt->bind_param("isiddds", 
+                    $purchase_id, 
+                    $product['name'], 
+                    $quantity, 
+                    $price, 
+                    $total_with_tax, 
+                    $total_tax_for_product, 
+                    $taxName
+                );
+                $itemStmt->execute();
+                
+                $total_amount += $total_before_tax;
+                $total_tax += $total_tax_for_product;
+            }
+            
+            // Update purchase details with final totals
+            $updatePurchaseSql = "UPDATE purchase_details 
+                                SET total_amount = ?, total_tax = ? 
+                                WHERE id = ?";
+            $updatePurchaseStmt = $conn->prepare($updatePurchaseSql);
+            $updatePurchaseStmt->bind_param("ddi", $total_amount, $total_tax, $purchase_id);
+            $updatePurchaseStmt->execute();
+            
+            $_SESSION['success_message'] = "Quotation approved and purchase order #$purchase_id created successfully!";
+        } else {
+            $_SESSION['success_message'] = "Status updated successfully!";
         }
         
         // Redirect to reload page and show updated status
@@ -260,6 +287,10 @@ $conn->close();
             color: #1f2d3d;
         }
         
+        .badge-info {
+            background-color: var(--info-color);
+        }
+        
         .btn-sm {
             padding: 0.25rem 0.5rem;
             font-size: 0.875rem;
@@ -354,6 +385,23 @@ $conn->close();
         .table-hover tbody tr:hover {
             background-color: rgba(0, 0, 0, 0.02);
         }
+        
+        .approval-status {
+            font-size: 0.8rem;
+            margin-top: 5px;
+        }
+        
+        .approval-approved {
+            color: var(--success-color);
+        }
+        
+        .approval-pending {
+            color: var(--warning-color);
+        }
+        
+        .approval-rejected {
+            color: var(--danger-color);
+        }
     </style>
 </head>
 <body>
@@ -403,6 +451,7 @@ $conn->close();
                                 <th>Distributor</th>
                                 <th>Subject</th>
                                 <th>Status</th>
+                                <th>Approvals</th>
                                 <th>Created</th>
                                 <th>Updated</th>
                                 <th>Actions</th>
@@ -420,18 +469,18 @@ $conn->close();
                                         <?php elseif ($quotation['status'] == 'REJECTED'): ?>
                                             <span class="badge badge-danger"><i class="fas fa-times mr-1"></i> Rejected</span>
                                         <?php else: ?>
-                                            <form method="POST" action="" class="status-form">
-                                                <input type="hidden" name="quotation_id" value="<?= $quotation['quotation_id']; ?>">
-                                                <select name="status" class="form-control form-control-sm status-select" required>
-                                                    <option value="PENDING" <?= $quotation['status'] == 'PENDING' ? 'selected' : ''; ?>>Pending</option>
-                                                    <option value="APPROVED" <?= $quotation['status'] == 'APPROVED' ? 'selected' : ''; ?>>Approved</option>
-                                                    <option value="REJECTED" <?= $quotation['status'] == 'REJECTED' ? 'selected' : ''; ?>>Rejected</option>
-                                                </select>
-                                                <button type="submit" name="update_status" class="btn btn-primary btn-sm">
-                                                    <i class="fas fa-sync-alt"></i>
-                                                </button>
-                                            </form>
+                                            <span class="badge badge-warning"><i class="fas fa-clock mr-1"></i> Pending</span>
                                         <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <div class="approval-status">
+                                            <div class="<?= $quotation['superadmin_approval'] == 'APPROVED' ? 'approval-approved' : ($quotation['superadmin_approval'] == 'REJECTED' ? 'approval-rejected' : 'approval-pending') ?>">
+                                                <i class="fas fa-user-shield mr-1"></i> Super Admin: <?= $quotation['superadmin_approval'] ?: 'PENDING' ?>
+                                            </div>
+                                            <div class="<?= $quotation['distributor_approval'] == 'APPROVED' ? 'approval-approved' : ($quotation['distributor_approval'] == 'REJECTED' ? 'approval-rejected' : 'approval-pending') ?>">
+                                                <i class="fas fa-user-tie mr-1"></i> Distributor: <?= $quotation['distributor_approval'] ?: 'PENDING' ?>
+                                            </div>
+                                        </div>
                                     </td>
                                     <td class="text-muted"><?= date('M d, Y', strtotime($quotation['createdAt'])); ?></td>
                                     <td class="text-muted"><?= date('M d, Y', strtotime($quotation['updatedAt'])); ?></td>
@@ -447,9 +496,19 @@ $conn->close();
                                                     </a>
                                                 <?php endif; ?>
                                             <?php else: ?>
-                                                <a href="edit_my_quotation.php?quotation_id=<?= $quotation['quotation_id']; ?>" class="btn btn-warning btn-sm">
-                                                    <i class="fas fa-edit mr-1"></i> Edit
-                                                </a>
+                                                <form method="POST" action="" class="status-form">
+                                                    <input type="hidden" name="quotation_id" value="<?= $quotation['quotation_id']; ?>">
+                                                    <select name="status" class="form-control form-control-sm status-select" required <?= $quotation['superadmin_approval'] == 'APPROVED' ? 'disabled' : '' ?>>
+                                                        <option value="PENDING" <?= $quotation['superadmin_approval'] == 'PENDING' ? 'selected' : '' ?>>Pending</option>
+                                                        <option value="APPROVED">Approve</option>
+                                                        <option value="REJECTED">Reject</option>
+                                                    </select>
+                                                    <?php if ($quotation['superadmin_approval'] != 'APPROVED'): ?>
+                                                        <button type="submit" name="update_status" class="btn btn-primary btn-sm">
+                                                            <i class="fas fa-save"></i>
+                                                        </button>
+                                                    <?php endif; ?>
+                                                </form>
                                             <?php endif; ?>
                                         </div>
                                     </td>
@@ -472,6 +531,19 @@ $conn->close();
 <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
 <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+<script>
+    // Add confirmation for reject action
+    $(document).ready(function() {
+        $('form.status-form').on('submit', function(e) {
+            const statusSelect = $(this).find('select[name="status"]');
+            if (statusSelect.val() === 'REJECTED') {
+                if (!confirm('Are you sure you want to reject this quotation?')) {
+                    e.preventDefault();
+                }
+            }
+        });
+    });
+</script>
 
 </body>
 </html>
