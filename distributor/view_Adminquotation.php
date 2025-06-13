@@ -488,7 +488,7 @@ $conn->close();
             <?php endif; ?>
         <?php else: ?>
             <a href="editquotation.php?quotation_id=<?= $quotation['quotation_id']; ?>" class="btn btn-warning btn-sm" title="Edit Quotation">
-                <i class="fas fa-edit mr-1"></i> Edit
+                <i class="fas fa-edit mr-1"></i> View & Edit 
             </a>
             <form method="POST" action="" class="status-form">
                 <input type="hidden" name="quotation_id" value="<?= $quotation['quotation_id']; ?>">

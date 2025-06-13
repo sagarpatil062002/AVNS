@@ -1,12 +1,14 @@
 <?php
-require_once('Config.php');
-include('CustomerNav.php');
+ob_start();
 session_start();
 
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
     exit();
 }
+
+require_once('Config.php');
+include('CustomerNav.php');
 
 $order_id = isset($_GET['order_id']) ? (int)$_GET['order_id'] : 0;
 $invoice_id = isset($_GET['invoice_id']) ? (int)$_GET['invoice_id'] : 0;
@@ -32,7 +34,7 @@ $order = $orderResult->fetch_assoc();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Payment Successful</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
-    <link rel="stylesheet" href="stylescss">
+    <link rel="stylesheet" href="styles.css">
 
     <style>
         .success-container {

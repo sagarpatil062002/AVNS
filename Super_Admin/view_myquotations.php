@@ -40,7 +40,8 @@ if (isset($_SESSION['user_id'])) {
             JOIN distributor d ON qh.distributorId = d.id
             LEFT JOIN purchase_details pd ON pd.quotation_id = qh.quotation_id
             WHERE qh.superAdminId = ?
-            GROUP BY qh.quotation_id";
+            GROUP BY qh.quotation_id
+            ORDER BY qh.createdAt DESC";  // Added ORDER BY for descending order
 
     $stmt = $conn->prepare($sql);
     $stmt->bind_param("i", $superAdminId);
@@ -486,12 +487,17 @@ $conn->close();
                                     <td class="text-muted"><?= date('M d, Y', strtotime($quotation['updatedAt'])); ?></td>
                                     <td>
                                         <div class="action-buttons">
+                                            <!-- Added Edit Button -->
+                                            <a href="edit_my_quotation.php?quotation_id=<?= $quotation['quotation_id']; ?>" class="btn btn-warning btn-sm" title="Edit">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            
                                             <?php if ($quotation['status'] == 'APPROVED'): ?>
                                                 <a href="download_quotation.php?quotation_id=<?= $quotation['quotation_id']; ?>" class="btn btn-success btn-sm">
                                                     <i class="fas fa-download mr-1"></i> Download
                                                 </a>
                                                 <?php if ($quotation['purchase_id']): ?>
-                                                    <a href="view_purchase_detials.php?id=<?= $quotation['purchase_id']; ?>" class="btn btn-info btn-sm">
+                                                    <a href="view_purchase_details.php?id=<?= $quotation['purchase_id']; ?>" class="btn btn-info btn-sm">
                                                         <i class="fas fa-file-invoice mr-1"></i> PO
                                                     </a>
                                                 <?php endif; ?>

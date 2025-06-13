@@ -9,8 +9,10 @@ include 'CustomerNav.php';
 <?php
 $customerId = $_SESSION['user_id'] ?? null;
 $companyName = null;
+$isExpired = false;
 
 if ($customerId) {
+    // Fetch company name
     $query = "SELECT companyName FROM customerdistributor WHERE id = ?";
     $stmt = $conn->prepare($query);
     $stmt->bind_param("i", $customerId);
@@ -18,9 +20,38 @@ if ($customerId) {
     $stmt->bind_result($companyName);
     $stmt->fetch();
     $stmt->close();
+
+    // Check subscription status
+    $subQuery = "SELECT id, isexpired, remaining_calls FROM customer_subscription WHERE user_id = ? AND status = 'Approved' ORDER BY end_date DESC LIMIT 1";
+    $subStmt = $conn->prepare($subQuery);
+    $subStmt->bind_param("i", $customerId);
+    $subStmt->execute();
+    $subResult = $subStmt->get_result();
+    
+    if ($subResult->num_rows > 0) {
+        $sub = $subResult->fetch_assoc();
+        
+        // If remaining_calls = 0, set isexpired = 1
+        if ($sub['remaining_calls'] == 0 && $sub['isexpired'] == 0) {
+            $updateSub = $conn->prepare("UPDATE customer_subscription SET isexpired = 1 WHERE id = ?");
+            $updateSub->bind_param("i", $sub['id']);
+            $updateSub->execute();
+            $updateSub->close();
+            $isExpired = true;
+        } else {
+            $isExpired = ($sub['isexpired'] == 1);
+        }
+    }
+    else
+    {
+         $isExpired = true; // Treat no subscription same as expired to block ticket
+    }
+
+    $subStmt->close();
 }
 
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+// Handle ticket form
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && !$isExpired) {
     $description = $_POST['description'] ?? '';
     $skills = $_POST['skills'] ?? '';
     $priority = $_POST['priority'] ?? '';
@@ -41,6 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 ?>
+
 
 <!DOCTYPE html>
 <html lang="en">
@@ -177,24 +209,30 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <h1 class="ticket-header">
                         <i class="fas fa-ticket-alt me-2"></i>Create Support Ticket
                     </h1>
-                    
+
                     <?php if (isset($successMessage)): ?>
                         <div class="alert alert-success">
                             <i class="fas fa-check-circle me-2"></i><?php echo $successMessage; ?>
                         </div>
                     <?php endif; ?>
-                    
+
                     <?php if (isset($errorMessage)): ?>
                         <div class="alert alert-danger">
                             <i class="fas fa-exclamation-circle me-2"></i><?php echo $errorMessage; ?>
                         </div>
                     <?php endif; ?>
-                    
+
+                    <?php if ($isExpired): ?>
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-circle me-2"></i>Your subscription has expired. Please renew it to raise a support ticket.
+                        </div>
+                    <?php endif; ?>
+
                     <form action="" method="POST">
                         <div class="mb-4">
                             <label for="customerId" class="form-label">Customer Name</label>
                             <div class="form-icon">
-                                <select class="form-select" id="customerId" name="customerId" required>
+                                <select class="form-select" id="customerId" name="customerId" required disabled>
                                     <?php if ($customerId && $companyName): ?>
                                         <option value="<?php echo $customerId; ?>"><?php echo $companyName; ?></option>
                                     <?php else: ?>
@@ -204,12 +242,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 <i class="fas fa-building"></i>
                             </div>
                         </div>
-                        
+
                         <div class="mb-4">
                             <label for="description" class="form-label">Issue Description</label>
                             <textarea class="form-control" id="description" name="description" required></textarea>
                         </div>
-                        
+
                         <div class="mb-4">
                             <label for="skills" class="form-label">Required Skills</label>
                             <div class="form-icon">
@@ -223,7 +261,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 <i class="fas fa-tools"></i>
                             </div>
                         </div>
-                        
+
                         <div class="mb-4">
                             <label for="priority" class="form-label">Priority Level</label>
                             <div class="form-icon">
@@ -235,9 +273,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 <i class="fas fa-exclamation-triangle"></i>
                             </div>
                         </div>
-                        
+
                         <div class="d-grid">
-                            <button type="submit" class="btn btn-primary">
+                            <button type="submit" class="btn btn-primary" <?php echo $isExpired ? 'disabled' : ''; ?>>
                                 <i class="fas fa-paper-plane me-2"></i>Submit Ticket
                             </button>
                         </div>
@@ -248,8 +286,5 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // Add any necessary JavaScript here
-    </script>
 </body>
 </html>
